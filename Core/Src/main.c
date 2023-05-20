@@ -73,6 +73,8 @@ const osThreadAttr_t myTask04_attributes = {
 };
 /* USER CODE BEGIN PV */
 static const uint8_t IMU_ADDR = 0x4A << 1;
+HAL_StatusTypeDef ret;
+uint8_t buf[12];
 
 /* USER CODE END PV */
 
@@ -181,10 +183,12 @@ int main(void)
 
 	  // Read from IMU
 //	  buf[0] = ;
-	  ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, HAL_MAX_DELAY);
-	  if ( ret != HAL_OK ) {
+//	  ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, HAL_MAX_DELAY);
+//	  ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, 10);
+	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+//	  if ( ret != HAL_OK ) {
 //	    strcpy((char*)buf, "Error Tx\r\n");
-	  } else {
+//	  } else {
 
 		  // Read 2 bytes from the temperature register
 //		  ret = HAL_I2C_Master_Receive(&hi2c1, IMU_ADDR, buf, 2, HAL_MAX_DELAY);
@@ -194,7 +198,7 @@ int main(void)
 //		  } else {
 			  //
 //		  }
-	  }
+//	  }
 
 	  // Wait
 	  HAL_Delay(500);
@@ -359,7 +363,19 @@ void StartTask1(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+	ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, 10);
+		  if ( ret != HAL_OK ) {
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+		  } else {
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+			  osDelay(200);
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+			  osDelay(200);
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+			  osDelay(200);
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+			  osDelay(200);
+		  }
     osDelay(1000);
   }
 

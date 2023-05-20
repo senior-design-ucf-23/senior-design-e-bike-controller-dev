@@ -64,8 +64,8 @@ all: main-build
 main-build: E-Bike-Controller-Dev.elf secondary-outputs
 
 # Tool invocations
-E-Bike-Controller-Dev.elf E-Bike-Controller-Dev.map: $(OBJS) $(USER_OBJS) C:\Users\Victor\Desktop\Senior-Design\STM32_Cube_Workspace\E-Bike-Controller-Dev\STM32F407VGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "E-Bike-Controller-Dev.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Victor\Desktop\Senior-Design\STM32_Cube_Workspace\E-Bike-Controller-Dev\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="E-Bike-Controller-Dev.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+E-Bike-Controller-Dev.elf E-Bike-Controller-Dev.map: $(OBJS) $(USER_OBJS) C:\Users\Victor\Desktop\Senior-Design\STM32-Workspace\E-Bike-Controller-Dev\STM32F407VGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "E-Bike-Controller-Dev.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Victor\Desktop\Senior-Design\STM32-Workspace\E-Bike-Controller-Dev\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="E-Bike-Controller-Dev.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

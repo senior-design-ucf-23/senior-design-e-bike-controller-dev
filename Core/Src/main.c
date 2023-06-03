@@ -22,7 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,6 +43,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
+
+UART_HandleTypeDef huart4;
 
 /* Definitions for Task1 */
 osThreadId_t Task1Handle;
@@ -82,6 +85,7 @@ uint8_t buf[12];
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_UART4_Init(void);
 void StartTask1(void *argument);
 void StartTask02(void *argument);
 void StartTask03(void *argument);
@@ -107,7 +111,7 @@ int main(void)
 	uint8_t buf[12];
 //	int16_t val;
 
-	/* USER CODE END 1 */
+  /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -128,6 +132,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
+  MX_UART4_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -159,10 +164,10 @@ int main(void)
   myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
 
   /* creation of myTask03 */
-  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
+//  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
 
   /* creation of myTask04 */
-  myTask04Handle = osThreadNew(StartTask04, NULL, &myTask04_attributes);
+//  myTask04Handle = osThreadNew(StartTask04, NULL, &myTask04_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -180,28 +185,6 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
-	  // Read from IMU
-//	  buf[0] = ;
-//	  ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, HAL_MAX_DELAY);
-//	  ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, 10);
-	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-//	  if ( ret != HAL_OK ) {
-//	    strcpy((char*)buf, "Error Tx\r\n");
-//	  } else {
-
-		  // Read 2 bytes from the temperature register
-//		  ret = HAL_I2C_Master_Receive(&hi2c1, IMU_ADDR, buf, 2, HAL_MAX_DELAY);
-
-//		  if ( ret != HAL_OK ) {
-//			  strcpy((char*)buf, "Error Rx\r\n");
-//		  } else {
-			  //
-//		  }
-//	  }
-
-	  // Wait
-	  HAL_Delay(500);
 
     /* USER CODE BEGIN 3 */
   }
@@ -288,6 +271,39 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief UART4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART4_Init(void)
+{
+
+  /* USER CODE BEGIN UART4_Init 0 */
+
+  /* USER CODE END UART4_Init 0 */
+
+  /* USER CODE BEGIN UART4_Init 1 */
+
+  /* USER CODE END UART4_Init 1 */
+  huart4.Instance = UART4;
+  huart4.Init.BaudRate = 9600;
+  huart4.Init.WordLength = UART_WORDLENGTH_8B;
+  huart4.Init.StopBits = UART_STOPBITS_1;
+  huart4.Init.Parity = UART_PARITY_NONE;
+  huart4.Init.Mode = UART_MODE_TX_RX;
+  huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart4.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART4_Init 2 */
+
+  /* USER CODE END UART4_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -365,7 +381,10 @@ void StartTask1(void *argument)
   {
 	ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, 10);
 		  if ( ret != HAL_OK ) {
-			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+			  osDelay(750);
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+			  osDelay(750);
 		  } else {
 			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
 			  osDelay(200);
@@ -395,10 +414,28 @@ void StartTask02(void *argument)
 {
   /* USER CODE BEGIN StartTask02 */
   /* Infinite loop */
+	uint8_t buf[12];
+	uint8_t get[12];
+
+	uint8_t i = 0;
 	  for(;;)
 	  {
-	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-	    osDelay(750);
+		  strcpy((char*)buf, "Hello\r\n");
+		  // Send out buffer (temperature or error message)
+//		  HAL_UART_Transmit(&huart4, buf, strlen((char*)buf), HAL_MAX_DELAY);
+		  sprintf(buf, "%d\r\n", i);
+//		  HAL_UART_Transmit(&huart4, buf, strlen((char*)buf), HAL_MAX_DELAY);
+//		  HAL_UART_Transmit_IT(&huart4, i, sizeof(i));
+		i++;
+	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+
+	    HAL_UART_Receive_IT(&huart4, get, strlen((char*)get));
+	    HAL_UART_Transmit(&huart4, get, strlen((char*)get), HAL_MAX_DELAY);
+	    if(!strcmp(get, "Hello"))
+	    {
+	    	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+	    }
+	    osDelay(1000);
 	  }
 
 	  // In case we accidentally exit loop

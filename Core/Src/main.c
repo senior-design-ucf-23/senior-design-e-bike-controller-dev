@@ -45,6 +45,7 @@
 I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef huart4;
+DMA_HandleTypeDef hdma_uart4_rx;
 
 /* Definitions for Task1 */
 osThreadId_t Task1Handle;
@@ -84,6 +85,7 @@ uint8_t buf[12];
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_UART4_Init(void);
 void StartTask1(void *argument);
@@ -97,7 +99,20 @@ void StartTask04(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+unsigned int counter = 0;
+uint8_t Rx_data[20];  //  creating a buffer of 10 bytes
+uint8_t UART4_rxBuffer[1] = {0};
+uint8_t Test[17] = "Hello World !!!\r\n";
 
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if(huart->Instance == huart4.Instance)
+	{
+		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+		//  memcpy(&Test, &UART4_rxBuffer, sizeof(Test));
+		HAL_UART_Receive_DMA(&huart4, UART4_rxBuffer, sizeof(UART4_rxBuffer));
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -107,8 +122,7 @@ void StartTask04(void *argument);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	HAL_StatusTypeDef ret;
-	uint8_t buf[12];
+//	uint8_t buf[12];
 //	int16_t val;
 
   /* USER CODE END 1 */
@@ -131,9 +145,11 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_I2C1_Init();
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
+  HAL_UART_Receive_DMA(&huart4, UART4_rxBuffer, sizeof(UART4_rxBuffer));
 
   /* USER CODE END 2 */
 
@@ -164,10 +180,10 @@ int main(void)
   myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
 
   /* creation of myTask03 */
-//  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
+  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
 
   /* creation of myTask04 */
-//  myTask04Handle = osThreadNew(StartTask04, NULL, &myTask04_attributes);
+  myTask04Handle = osThreadNew(StartTask04, NULL, &myTask04_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -292,7 +308,7 @@ static void MX_UART4_Init(void)
   huart4.Init.Parity = UART_PARITY_NONE;
   huart4.Init.Mode = UART_MODE_TX_RX;
   huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart4.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart4.Init.OverSampling = UART_OVERSAMPLING_8;
   if (HAL_UART_Init(&huart4) != HAL_OK)
   {
     Error_Handler();
@@ -300,6 +316,22 @@ static void MX_UART4_Init(void)
   /* USER CODE BEGIN UART4_Init 2 */
 
   /* USER CODE END UART4_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
 
 }
 
@@ -364,6 +396,8 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartTask1 */
@@ -414,28 +448,28 @@ void StartTask02(void *argument)
 {
   /* USER CODE BEGIN StartTask02 */
   /* Infinite loop */
-	uint8_t buf[12];
-	uint8_t get[12];
-
-	uint8_t i = 0;
+//	uint8_t buf[12];
+//	uint8_t get[12];
+//
+//	uint8_t i = 0;
 	  for(;;)
 	  {
-		  strcpy((char*)buf, "Hello\r\n");
-		  // Send out buffer (temperature or error message)
-//		  HAL_UART_Transmit(&huart4, buf, strlen((char*)buf), HAL_MAX_DELAY);
-		  sprintf(buf, "%d\r\n", i);
-//		  HAL_UART_Transmit(&huart4, buf, strlen((char*)buf), HAL_MAX_DELAY);
-//		  HAL_UART_Transmit_IT(&huart4, i, sizeof(i));
-		i++;
-	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-
-	    HAL_UART_Receive_IT(&huart4, get, strlen((char*)get));
-	    HAL_UART_Transmit(&huart4, get, strlen((char*)get), HAL_MAX_DELAY);
-	    if(!strcmp(get, "Hello"))
-	    {
-	    	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
-	    }
-	    osDelay(1000);
+//		  strcpy((char*)buf, "Hello\r\n");
+//		  // Send out buffer (temperature or error message)
+////		  HAL_UART_Transmit(&huart4, buf, strlen((char*)buf), HAL_MAX_DELAY);
+//		  sprintf(buf, "%d\r\n", i);
+////		  HAL_UART_Transmit(&huart4, buf, strlen((char*)buf), HAL_MAX_DELAY);
+////		  HAL_UART_Transmit_IT(&huart4, i, sizeof(i));
+//		i++;
+//	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+//
+//	    HAL_UART_Receive_IT(&huart4, get, strlen((char*)get));
+//	    HAL_UART_Transmit(&huart4, get, strlen((char*)get), HAL_MAX_DELAY);
+//	    if(!strcmp(get, "Hello"))
+//	    {
+//	    	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+//	    }
+//	    osDelay(1000);
 	  }
 
 	  // In case we accidentally exit loop
@@ -475,11 +509,48 @@ void StartTask03(void *argument)
 void StartTask04(void *argument)
 {
   /* USER CODE BEGIN StartTask04 */
+//	uint8_t Test[20] = "Hello World !!!\n";
+//	uint8_t Rece[20];
   /* Infinite loop */
 	  for(;;)
 	  {
-	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-	    osDelay(250);
+//	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+//	    osDelay(250);
+
+
+//	    HAL_UART_Transmit(&huart4, Test, sizeof(Test), 10)
+//	    if (HAL_UART_Transmit_IT(&huart4, Test, sizeof(Test)) == HAL_OK)
+	    if (HAL_UART_Transmit(&huart4, Test, sizeof(Test), HAL_MAX_DELAY) == HAL_OK)
+	    {
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+	    }
+//	    else if (HAL_UART_Transmit_IT(&huart4, Test, sizeof(Test)) == HAL_ERROR)
+	    else
+	    {
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
+	    }
+	    osDelay(1000);
+
+	    if (UART4_rxBuffer[0] == 1)
+	    {
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
+	    	osDelay(5000);
+//	    	memset(UART4_rxBuffer, '\0', sizeof(UART4_rxBuffer));
+	    }
+
+//	    while(HAL_UART_Receive(&huart4, Rece, sizeof(Rece), HAL_MAX_DELAY) == HAL_OK)
+//	    {
+//	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+//	    	memcpy(&Test, &Rece, sizeof(Test));
+//	    }
+//	    osDelay(1000);
+	    counter++;
 	  }
 
 	  // In case we accidentally exit loop

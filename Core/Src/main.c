@@ -100,17 +100,56 @@ void StartTask04(void *argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 unsigned int counter = 0;
-uint8_t Rx_data[20];  //  creating a buffer of 10 bytes
-uint8_t UART4_rxBuffer[1] = {0};
+uint8_t rx_char;
+uint8_t UART4_rxBuffer[20] = {0};
+int i = 0;
 uint8_t Test[17] = "Hello World !!!\r\n";
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart->Instance == huart4.Instance)
 	{
-		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+		if(rx_char == '1')
+		{
+			rx_char = '\0';
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
+//			HAL_Delay(5000);
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+
+		}
+		else if (rx_char == '0')
+		{
+			rx_char = '\0';
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+						memset(UART4_rxBuffer, 0, i);
+						i=0;
+
+		}
+		else if (rx_char == 'a')
+		{
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+		}
+		else
+		{
+			if(rx_char == '\r' || rx_char == '\n') {}
+			else
+			{
+				UART4_rxBuffer[i++] = rx_char;
+			}
+		}
+
 		//  memcpy(&Test, &UART4_rxBuffer, sizeof(Test));
-		HAL_UART_Receive_DMA(&huart4, UART4_rxBuffer, sizeof(UART4_rxBuffer));
+//		HAL_UART_Receive_DMA(&huart4, UART4_rxBuffer, sizeof(UART4_rxBuffer));
+		HAL_UART_Receive_IT(&huart4, &rx_char, 1);
 	}
 }
 /* USER CODE END 0 */
@@ -149,7 +188,8 @@ int main(void)
   MX_I2C1_Init();
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive_DMA(&huart4, UART4_rxBuffer, sizeof(UART4_rxBuffer));
+//  HAL_UART_Receive_DMA(&huart4, UART4_rxBuffer, sizeof(UART4_rxBuffer));
+  HAL_UART_Receive_IT(&huart4, &rx_char, 1);
 
   /* USER CODE END 2 */
 
@@ -174,13 +214,13 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of Task1 */
-  Task1Handle = osThreadNew(StartTask1, NULL, &Task1_attributes);
+//  Task1Handle = osThreadNew(StartTask1, NULL, &Task1_attributes);
 
   /* creation of myTask02 */
-  myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
+//  myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
 
   /* creation of myTask03 */
-  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
+//  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
 
   /* creation of myTask04 */
   myTask04Handle = osThreadNew(StartTask04, NULL, &myTask04_attributes);
@@ -413,23 +453,23 @@ void StartTask1(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, 10);
-		  if ( ret != HAL_OK ) {
-			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-			  osDelay(750);
-			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-			  osDelay(750);
-		  } else {
-			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-			  osDelay(200);
-			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-			  osDelay(200);
-			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-			  osDelay(200);
-			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-			  osDelay(200);
-		  }
-    osDelay(1000);
+//	ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, 10);
+//		  if ( ret != HAL_OK ) {
+//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+//			  osDelay(750);
+//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+//			  osDelay(750);
+//		  } else {
+//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+//			  osDelay(200);
+//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+//			  osDelay(200);
+//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+//			  osDelay(200);
+//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+//			  osDelay(200);
+//		  }
+//    osDelay(1000);
   }
 
   // In case we accidentally exit loop
@@ -490,8 +530,8 @@ void StartTask03(void *argument)
   /* Infinite loop */
 	  for(;;)
 	  {
-	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
-	    osDelay(500);
+//	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+//	    osDelay(500);
 	  }
 
 	  // In case we accidentally exit loop
@@ -534,7 +574,7 @@ void StartTask04(void *argument)
 	    }
 	    osDelay(1000);
 
-	    if (UART4_rxBuffer[0] == 1)
+	    if (UART4_rxBuffer[0] == '\n')
 	    {
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);

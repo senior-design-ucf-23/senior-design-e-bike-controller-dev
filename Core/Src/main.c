@@ -44,8 +44,11 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
-UART_HandleTypeDef huart4;
-DMA_HandleTypeDef hdma_uart4_rx;
+TIM_HandleTypeDef htim4;
+
+UART_HandleTypeDef huart5;
+DMA_HandleTypeDef hdma_uart5_rx;
+DMA_HandleTypeDef hdma_uart5_tx;
 
 /* Definitions for Task1 */
 osThreadId_t Task1Handle;
@@ -87,7 +90,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
-static void MX_UART4_Init(void);
+static void MX_UART5_Init(void);
+static void MX_TIM4_Init(void);
 void StartTask1(void *argument);
 void StartTask02(void *argument);
 void StartTask03(void *argument);
@@ -107,7 +111,7 @@ uint8_t Test[17] = "Hello World !!!\r\n";
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	if(huart->Instance == huart4.Instance)
+	if(huart->Instance == huart5.Instance)
 	{
 		if(rx_char == '1')
 		{
@@ -148,8 +152,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		}
 
 		//  memcpy(&Test, &UART4_rxBuffer, sizeof(Test));
-//		HAL_UART_Receive_DMA(&huart4, UART4_rxBuffer, sizeof(UART4_rxBuffer));
-		HAL_UART_Receive_IT(&huart4, &rx_char, 1);
+//		HAL_UART_Receive_DMA(&huart5, UART4_rxBuffer, sizeof(UART4_rxBuffer));
+		HAL_UART_Receive_IT(&huart5, &rx_char, 1);
 	}
 }
 /* USER CODE END 0 */
@@ -186,10 +190,11 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_I2C1_Init();
-  MX_UART4_Init();
+  MX_UART5_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-//  HAL_UART_Receive_DMA(&huart4, UART4_rxBuffer, sizeof(UART4_rxBuffer));
-  HAL_UART_Receive_IT(&huart4, &rx_char, 1);
+//  HAL_UART_Receive_DMA(&huart5, UART4_rxBuffer, sizeof(UART4_rxBuffer));
+  HAL_UART_Receive_IT(&huart5, &rx_char, 1);
 
   /* USER CODE END 2 */
 
@@ -214,13 +219,13 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of Task1 */
-//  Task1Handle = osThreadNew(StartTask1, NULL, &Task1_attributes);
+  Task1Handle = osThreadNew(StartTask1, NULL, &Task1_attributes);
 
   /* creation of myTask02 */
-//  myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
+  myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
 
   /* creation of myTask03 */
-//  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
+  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
 
   /* creation of myTask04 */
   myTask04Handle = osThreadNew(StartTask04, NULL, &myTask04_attributes);
@@ -264,12 +269,13 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 336;
+  RCC_OscInitStruct.PLL.PLLN = 100;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 7;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -286,7 +292,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -327,35 +333,101 @@ static void MX_I2C1_Init(void)
 }
 
 /**
-  * @brief UART4 Initialization Function
+  * @brief TIM4 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_UART4_Init(void)
+static void MX_TIM4_Init(void)
 {
 
-  /* USER CODE BEGIN UART4_Init 0 */
+  /* USER CODE BEGIN TIM4_Init 0 */
 
-  /* USER CODE END UART4_Init 0 */
+  /* USER CODE END TIM4_Init 0 */
 
-  /* USER CODE BEGIN UART4_Init 1 */
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
 
-  /* USER CODE END UART4_Init 1 */
-  huart4.Instance = UART4;
-  huart4.Init.BaudRate = 9600;
-  huart4.Init.WordLength = UART_WORDLENGTH_8B;
-  huart4.Init.StopBits = UART_STOPBITS_1;
-  huart4.Init.Parity = UART_PARITY_NONE;
-  huart4.Init.Mode = UART_MODE_TX_RX;
-  huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart4.Init.OverSampling = UART_OVERSAMPLING_8;
-  if (HAL_UART_Init(&huart4) != HAL_OK)
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 0;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 65535;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN UART4_Init 2 */
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_TRIGGER;
+  sSlaveConfig.InputTrigger = TIM_TS_ITR0;
+  if (HAL_TIM_SlaveConfigSynchro(&htim4, &sSlaveConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
 
-  /* USER CODE END UART4_Init 2 */
+  /* USER CODE END TIM4_Init 2 */
+  HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
+  * @brief UART5 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART5_Init(void)
+{
+
+  /* USER CODE BEGIN UART5_Init 0 */
+
+  /* USER CODE END UART5_Init 0 */
+
+  /* USER CODE BEGIN UART5_Init 1 */
+
+  /* USER CODE END UART5_Init 1 */
+  huart5.Instance = UART5;
+  huart5.Init.BaudRate = 9600;
+  huart5.Init.WordLength = UART_WORDLENGTH_8B;
+  huart5.Init.StopBits = UART_STOPBITS_1;
+  huart5.Init.Parity = UART_PARITY_NONE;
+  huart5.Init.Mode = UART_MODE_TX_RX;
+  huart5.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart5.Init.OverSampling = UART_OVERSAMPLING_8;
+  if (HAL_UART_Init(&huart5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART5_Init 2 */
+
+  /* USER CODE END UART5_Init 2 */
 
 }
 
@@ -369,9 +441,12 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Stream2_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+  /* DMA1_Stream7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
 
 }
 
@@ -395,7 +470,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD5_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -417,8 +492,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
   HAL_GPIO_Init(CLK_IN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LD4_Pin LD3_Pin LD5_Pin LD6_Pin */
-  GPIO_InitStruct.Pin = LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin;
+  /*Configure GPIO pins : LD4_Pin LD3_Pin LD5_Pin */
+  GPIO_InitStruct.Pin = LD4_Pin|LD3_Pin|LD5_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -453,6 +528,8 @@ void StartTask1(void *argument)
   /* Infinite loop */
   for(;;)
   {
+	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+	  			  osDelay(200);
 //	ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, 10);
 //		  if ( ret != HAL_OK ) {
 //			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
@@ -496,15 +573,15 @@ void StartTask02(void *argument)
 	  {
 //		  strcpy((char*)buf, "Hello\r\n");
 //		  // Send out buffer (temperature or error message)
-////		  HAL_UART_Transmit(&huart4, buf, strlen((char*)buf), HAL_MAX_DELAY);
+////		  HAL_UART_Transmit(&huart5, buf, strlen((char*)buf), HAL_MAX_DELAY);
 //		  sprintf(buf, "%d\r\n", i);
-////		  HAL_UART_Transmit(&huart4, buf, strlen((char*)buf), HAL_MAX_DELAY);
-////		  HAL_UART_Transmit_IT(&huart4, i, sizeof(i));
+////		  HAL_UART_Transmit(&huart5, buf, strlen((char*)buf), HAL_MAX_DELAY);
+////		  HAL_UART_Transmit_IT(&huart5, i, sizeof(i));
 //		i++;
 //	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
 //
-//	    HAL_UART_Receive_IT(&huart4, get, strlen((char*)get));
-//	    HAL_UART_Transmit(&huart4, get, strlen((char*)get), HAL_MAX_DELAY);
+//	    HAL_UART_Receive_IT(&huart5, get, strlen((char*)get));
+//	    HAL_UART_Transmit(&huart5, get, strlen((char*)get), HAL_MAX_DELAY);
 //	    if(!strcmp(get, "Hello"))
 //	    {
 //	    	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
@@ -558,13 +635,13 @@ void StartTask04(void *argument)
 //	    osDelay(250);
 
 
-//	    HAL_UART_Transmit(&huart4, Test, sizeof(Test), 10)
-//	    if (HAL_UART_Transmit_IT(&huart4, Test, sizeof(Test)) == HAL_OK)
-	    if (HAL_UART_Transmit(&huart4, Test, sizeof(Test), HAL_MAX_DELAY) == HAL_OK)
+//	    HAL_UART_Transmit(&huart5, Test, sizeof(Test), 10)
+//	    if (HAL_UART_Transmit_IT(&huart5, Test, sizeof(Test)) == HAL_OK)
+	    if (HAL_UART_Transmit(&huart5, Test, sizeof(Test), HAL_MAX_DELAY) == HAL_OK)
 	    {
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
 	    }
-//	    else if (HAL_UART_Transmit_IT(&huart4, Test, sizeof(Test)) == HAL_ERROR)
+//	    else if (HAL_UART_Transmit_IT(&huart5, Test, sizeof(Test)) == HAL_ERROR)
 	    else
 	    {
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
@@ -584,7 +661,7 @@ void StartTask04(void *argument)
 //	    	memset(UART4_rxBuffer, '\0', sizeof(UART4_rxBuffer));
 	    }
 
-//	    while(HAL_UART_Receive(&huart4, Rece, sizeof(Rece), HAL_MAX_DELAY) == HAL_OK)
+//	    while(HAL_UART_Receive(&huart5, Rece, sizeof(Rece), HAL_MAX_DELAY) == HAL_OK)
 //	    {
 //	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
 //	    	memcpy(&Test, &Rece, sizeof(Test));

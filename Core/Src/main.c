@@ -23,7 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
-#include <stdio.h>
+//#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,8 +42,12 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+
 I2C_HandleTypeDef hi2c1;
 
+TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart5;
@@ -55,34 +59,30 @@ osThreadId_t Task1Handle;
 const osThreadAttr_t Task1_attributes = {
   .name = "Task1",
   .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+/* Definitions for Task2 */
+osThreadId_t Task2Handle;
+const osThreadAttr_t Task2_attributes = {
+  .name = "Task2",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityRealtime,
+};
+/* Definitions for Task3 */
+osThreadId_t Task3Handle;
+const osThreadAttr_t Task3_attributes = {
+  .name = "Task3",
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for myTask02 */
-osThreadId_t myTask02Handle;
-const osThreadAttr_t myTask02_attributes = {
-  .name = "myTask02",
+/* Definitions for Task04 */
+osThreadId_t Task04Handle;
+const osThreadAttr_t Task04_attributes = {
+  .name = "Task04",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for myTask03 */
-osThreadId_t myTask03Handle;
-const osThreadAttr_t myTask03_attributes = {
-  .name = "myTask03",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for myTask04 */
-osThreadId_t myTask04Handle;
-const osThreadAttr_t myTask04_attributes = {
-  .name = "myTask04",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityHigh,
 };
 /* USER CODE BEGIN PV */
-static const uint8_t IMU_ADDR = 0x4A << 1;
-HAL_StatusTypeDef ret;
-uint8_t buf[12];
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -92,70 +92,189 @@ static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_UART5_Init(void);
 static void MX_TIM4_Init(void);
-void StartTask1(void *argument);
-void StartTask02(void *argument);
-void StartTask03(void *argument);
-void StartTask04(void *argument);
+static void MX_ADC1_Init(void);
+static void MX_TIM1_Init(void);
+void IMU_Batter(void *argument);
+void ThrottleADC(void *argument);
+void LED_Control(void *argument);
+void WriteBluetooth(void *argument);
 
 /* USER CODE BEGIN PFP */
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-unsigned int counter = 0;
+
+// IMU addresses
+//static const uint8_t IMU_ADDR = 0x4A << 1;
+
+// Bluetooth variables
 uint8_t rx_char;
 uint8_t UART4_rxBuffer[20] = {0};
 int i = 0;
-uint8_t Test[17] = "Hello World !!!\r\n";
+
+// Throttle variables
+uint16_t throttle;
+
+// Speedometer variables
+uint32_t speed = 0;
+uint32_t tick = 0;
+const float hrs = 2.7777777777778E-7;
+const float wheel_circum_miles = (2070/1609344)/6;
+
+// LED variables
+uint8_t red = 0;
+uint8_t green = 0;
+uint8_t blue = 0;
+// 0 - 0
+// 1 - 85
+// 2 - 170
+// 3 - 255
+
+// Mode flags
+uint8_t mode = 0;
+uint8_t mode_changed = 0;
+// mode 0 - idle
+// mode 1 - throttle
+// mode 2 - cruise
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart->Instance == huart5.Instance)
 	{
-		if(rx_char == '1')
+		if(rx_char == '\r' || rx_char == '\n')
 		{
-			rx_char = '\0';
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
-//			HAL_Delay(5000);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
-
-		}
-		else if (rx_char == '0')
-		{
-			rx_char = '\0';
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
-						memset(UART4_rxBuffer, 0, i);
-						i=0;
-
-		}
-		else if (rx_char == 'a')
-		{
-			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
-			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-		}
-		else
-		{
-			if(rx_char == '\r' || rx_char == '\n') {}
-			else
-			{
-				UART4_rxBuffer[i++] = rx_char;
-			}
+			HAL_UART_Receive_IT(&huart5, &rx_char, 1);
+			return;
 		}
 
-		//  memcpy(&Test, &UART4_rxBuffer, sizeof(Test));
-//		HAL_UART_Receive_DMA(&huart5, UART4_rxBuffer, sizeof(UART4_rxBuffer));
+		// Retrieve mode and set flag
+		uint8_t new_mode = rx_char & 0x03;
+		if (new_mode != mode)
+		{
+			mode = new_mode;
+			mode_changed = 1;
+		}
+//		mode = rx_char & 0x03;
+
+		// Retrieve red
+		red = (rx_char >> 6) & 0x03;
+
+		// Retrieve green
+		green = (rx_char >> 4) & 0x03;
+
+		// Retrieve blue
+		blue = (rx_char >> 2) & 0x03;
+
+
+
+
+//		if(rx_char == '1')
+//		{
+////			rx_char = '\0';
+//			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+//			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+//			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+//			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+//		}
+//		else if (rx_char == '0')
+//		{
+////			rx_char = '\0';
+//			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+//			memset(UART4_rxBuffer, 0, i);
+//			i=0;
+//
+//		}
+//		else if (rx_char == 'a')
+//		{
+////			rx_char = '\0';
+//			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+//			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+//			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+//			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+//		}
+//		else
+//		{
+//
+//		}
+
 		HAL_UART_Receive_IT(&huart5, &rx_char, 1);
 	}
 }
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN)
+{
+	if (GPIO_PIN == GPIO_PIN_1)
+	{
+//		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+		// Calculate speed
+		speed = HAL_GetTick() - tick;
+		tick = HAL_GetTick();
+	}
+	else if (GPIO_PIN == GPIO_PIN_2 || GPIO_PIN == GPIO_PIN_0)
+	{
+		mode++;
+		if (mode == 2)
+		{
+			mode = 0;
+		}
+		mode_changed = 1;
+	}
+	else
+	{
+		__NOP();
+	}
+}
+
+uint8_t convert_color(uint8_t color)
+{
+	switch (color)
+	{
+		case 0:
+			return 0;
+		break;
+		case 1:
+			return 85;
+		break;
+		case 2:
+			return 170;
+		break;
+		case 3:
+			return 255;
+		break;
+		default:
+			return 0;
+		break;
+	}
+
+	return 0;
+}
+
+void mode_change_ack(uint8_t changed_mode)
+{
+	if (changed_mode == 1)
+	{
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 255);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 255);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, 255);
+		osDelay(500);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, 0);
+		osDelay(500);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 255);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 255);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, 255);
+		osDelay(500);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, 0);
+		osDelay(500);
+
+		mode_changed = 0;
+	}
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -165,9 +284,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-//	uint8_t buf[12];
-//	int16_t val;
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -176,14 +292,12 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -192,6 +306,8 @@ int main(void)
   MX_I2C1_Init();
   MX_UART5_Init();
   MX_TIM4_Init();
+  MX_ADC1_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 //  HAL_UART_Receive_DMA(&huart5, UART4_rxBuffer, sizeof(UART4_rxBuffer));
   HAL_UART_Receive_IT(&huart5, &rx_char, 1);
@@ -219,16 +335,16 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of Task1 */
-  Task1Handle = osThreadNew(StartTask1, NULL, &Task1_attributes);
+  Task1Handle = osThreadNew(IMU_Batter, NULL, &Task1_attributes);
 
-  /* creation of myTask02 */
-  myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
+  /* creation of Task2 */
+  Task2Handle = osThreadNew(ThrottleADC, NULL, &Task2_attributes);
 
-  /* creation of myTask03 */
-  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
+  /* creation of Task3 */
+  Task3Handle = osThreadNew(LED_Control, NULL, &Task3_attributes);
 
-  /* creation of myTask04 */
-  myTask04Handle = osThreadNew(StartTask04, NULL, &myTask04_attributes);
+  /* creation of Task04 */
+  Task04Handle = osThreadNew(WriteBluetooth, NULL, &Task04_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -275,7 +391,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 100;
+  RCC_OscInitStruct.PLL.PLLN = 80;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 7;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -290,12 +406,64 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -333,6 +501,81 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief TIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM1_Init(void)
+{
+
+  /* USER CODE BEGIN TIM1_Init 0 */
+
+  /* USER CODE END TIM1_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 39;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 40960;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_ENABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_LOW;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_ENABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM1_Init 2 */
+
+  /* USER CODE END TIM1_Init 2 */
+  HAL_TIM_MspPostInit(&htim1);
+
+}
+
+/**
   * @brief TIM4 Initialization Function
   * @param None
   * @retval None
@@ -345,7 +588,6 @@ static void MX_TIM4_Init(void)
   /* USER CODE END TIM4_Init 0 */
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -353,11 +595,11 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
+  htim4.Init.Prescaler = 390;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 65535;
+  htim4.Init.Period = 256;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
   {
     Error_Handler();
@@ -371,12 +613,6 @@ static void MX_TIM4_Init(void)
   {
     Error_Handler();
   }
-  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_TRIGGER;
-  sSlaveConfig.InputTrigger = TIM_TS_ITR0;
-  if (HAL_TIM_SlaveConfigSynchro(&htim4, &sSlaveConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
@@ -387,6 +623,14 @@ static void MX_TIM4_Init(void)
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
@@ -439,6 +683,7 @@ static void MX_DMA_Init(void)
 
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
+  __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Stream0_IRQn interrupt configuration */
@@ -447,6 +692,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream7_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
+  /* DMA2_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
 
 }
 
@@ -466,17 +714,29 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD5_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LD4_GPIO_Port, LD4_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+  /*Configure GPIO pin : mode_button_Pin */
+  GPIO_InitStruct.Pin = mode_button_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(mode_button_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BOOT1_Pin */
   GPIO_InitStruct.Pin = BOOT1_Pin;
@@ -492,18 +752,22 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
   HAL_GPIO_Init(CLK_IN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LD4_Pin LD3_Pin LD5_Pin */
-  GPIO_InitStruct.Pin = LD4_Pin|LD3_Pin|LD5_Pin;
+  /*Configure GPIO pin : LD4_Pin */
+  GPIO_InitStruct.Pin = LD4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+  HAL_GPIO_Init(LD4_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : I2C_Interrupt_Pin */
-  GPIO_InitStruct.Pin = I2C_Interrupt_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(I2C_Interrupt_GPIO_Port, &GPIO_InitStruct);
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI2_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -511,168 +775,259 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-
-
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartTask1 */
+/* USER CODE BEGIN Header_IMU_Batter */
 /**
   * @brief  Function implementing the Task1 thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartTask1 */
-void StartTask1(void *argument)
+/* USER CODE END Header_IMU_Batter */
+void IMU_Batter(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-	  			  osDelay(200);
-//	ret = HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, buf, 1, 10);
-//		  if ( ret != HAL_OK ) {
-//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-//			  osDelay(750);
-//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-//			  osDelay(750);
-//		  } else {
-//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-//			  osDelay(200);
-//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-//			  osDelay(200);
-//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-//			  osDelay(200);
-//			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-//			  osDelay(200);
-//		  }
-//    osDelay(1000);
-  }
+
+//	shtpData[0] = 0xF9;
+//	shtpData[1] = 0;
+//
+//	sendPacket(2, 2);
+//	receivePacket();
+
+
+	/* Infinite loop */
+	for(;;)
+	{
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+
+//			strcpy((char*)buf, "A OK\r\n");
+//			HAL_UART_Transmit(&huart5, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
+
+//		shtpData[0] = 0x02;
+//		shtpData[1] = 0x00;
+//		sendPacket(5, 2);
+//		receivePacket();
+
+//		uint8_t dataBuffer[20] = {0x06, 0x00, 0x02, 0x00, 0xF9, 0x00};
+//		HAL_I2C_Master_Transmit(&hi2c1, IMU_ADDR, dataBuffer, 6, HAL_MAX_DELAY);
+//
+////		buf[0] = 0x01 << 1;
+//		HAL_I2C_Master_Receive(&hi2c1, IMU_ADDR, recv, 4, HAL_MAX_DELAY);
+//		HAL_UART_Transmit(&huart5, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
+		osDelay(1000);
+	}
 
   // In case we accidentally exit loop
   osThreadTerminate(NULL);
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_StartTask02 */
+/* USER CODE BEGIN Header_ThrottleADC */
 /**
-* @brief Function implementing the myTask02 thread.
+* @brief Function implementing the Task2 thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask02 */
-void StartTask02(void *argument)
+/* USER CODE END Header_ThrottleADC */
+void ThrottleADC(void *argument)
 {
-  /* USER CODE BEGIN StartTask02 */
-  /* Infinite loop */
-//	uint8_t buf[12];
-//	uint8_t get[12];
-//
-//	uint8_t i = 0;
+  /* USER CODE BEGIN ThrottleADC */
+	uint16_t raw;
+	int32_t CH1_DC = 0;
+//	char msg[10];
+	int output_end = 4095;
+	int output_start = 100;
+	int input_end = 3120;
+	int input_start = 1180;
+//	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
+//	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 	  for(;;)
 	  {
-//		  strcpy((char*)buf, "Hello\r\n");
-//		  // Send out buffer (temperature or error message)
-////		  HAL_UART_Transmit(&huart5, buf, strlen((char*)buf), HAL_MAX_DELAY);
-//		  sprintf(buf, "%d\r\n", i);
-////		  HAL_UART_Transmit(&huart5, buf, strlen((char*)buf), HAL_MAX_DELAY);
-////		  HAL_UART_Transmit_IT(&huart5, i, sizeof(i));
-//		i++;
-//	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-//
-//	    HAL_UART_Receive_IT(&huart5, get, strlen((char*)get));
-//	    HAL_UART_Transmit(&huart5, get, strlen((char*)get), HAL_MAX_DELAY);
-//	    if(!strcmp(get, "Hello"))
-//	    {
-//	    	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
-//	    }
-//	    osDelay(1000);
+
+		  // Idle mode
+		  if (mode == 0)
+		  {
+			  if(mode_changed == 1)
+			  {
+				  HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+			  }
+			  mode_change_ack(mode_changed);
+		  }
+		  // Throttle mode
+		  else if (mode == 1)
+		  {
+			  if(mode_changed == 1)
+			  {
+				  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+			  }
+			  mode_change_ack(mode_changed);
+		  }
+
+		  // Set pin high
+//			  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
+
+		  // Get ADC values
+		  HAL_ADC_Start(&hadc1);
+		  HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+		  raw = HAL_ADC_GetValue(&hadc1);
+
+		  double slope = 1.0 * (output_end - output_start) / (input_end - input_start);
+		  throttle = output_start + slope * (raw - input_start);
+//		  throttle = raw;
+
+		  CH1_DC = throttle;
+		  // set pin low
+//			  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+
+		  // Set analog to output
+		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, CH1_DC);
+
+		  // convert to string and print
+//		  sprintf(msg, "%hu\r\n", raw);
+//		  HAL_UART_Transmit(&huart5, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+		  osDelay(500);
 	  }
 
 	  // In case we accidentally exit loop
 	  osThreadTerminate(NULL);
-  /* USER CODE END StartTask02 */
+  /* USER CODE END ThrottleADC */
 }
 
-/* USER CODE BEGIN Header_StartTask03 */
+/* USER CODE BEGIN Header_LED_Control */
 /**
-* @brief Function implementing the myTask03 thread.
+* @brief Function implementing the Task3 thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask03 */
-void StartTask03(void *argument)
+/* USER CODE END Header_LED_Control */
+void LED_Control(void *argument)
 {
-  /* USER CODE BEGIN StartTask03 */
-  /* Infinite loop */
-	  for(;;)
-	  {
-//	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
-//	    osDelay(500);
-	  }
+  /* USER CODE BEGIN LED_Control */
 
-	  // In case we accidentally exit loop
-	  osThreadTerminate(NULL);
-  /* USER CODE END StartTask03 */
+	uint8_t PWM_red = 0;
+	uint8_t PWM_green = 0;
+	uint8_t PWM_blue = 0;
+
+	//	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
+
+	/* Infinite loop */
+	for(;;)
+	{
+		PWM_red = convert_color(red);
+		PWM_green = convert_color(green);
+		PWM_blue = convert_color(blue);
+
+//		TIM4->CCR4 = CH4_DC;
+//		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, CH4_DC);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, PWM_red);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, PWM_green);
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, PWM_blue);
+
+		osDelay(1000);
+	}
+
+	// In case we accidentally exit loop
+	osThreadTerminate(NULL);
+  /* USER CODE END LED_Control */
 }
 
-/* USER CODE BEGIN Header_StartTask04 */
+/* USER CODE BEGIN Header_WriteBluetooth */
 /**
-* @brief Function implementing the myTask04 thread.
+* @brief Function implementing the Task04 thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask04 */
-void StartTask04(void *argument)
+/* USER CODE END Header_WriteBluetooth */
+void WriteBluetooth(void *argument)
 {
-  /* USER CODE BEGIN StartTask04 */
-//	uint8_t Test[20] = "Hello World !!!\n";
-//	uint8_t Rece[20];
-  /* Infinite loop */
-	  for(;;)
-	  {
-//	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-//	    osDelay(250);
+  /* USER CODE BEGIN WriteBluetooth */
+	//	uint8_t Test[20] = "Hello World !!!\n";
+	//	uint8_t Rece[20];
+	uint8_t buffer[40];
+//	uint16_t speed = 0;
+	uint16_t batt = 50;
+//	uint16_t raw;
+
+	uint32_t test_speed = 814;
+
+	  /* Infinite loop */
+		  for(;;)
+		  {
+	//	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+	//	    osDelay(250);
 
 
-//	    HAL_UART_Transmit(&huart5, Test, sizeof(Test), 10)
-//	    if (HAL_UART_Transmit_IT(&huart5, Test, sizeof(Test)) == HAL_OK)
-	    if (HAL_UART_Transmit(&huart5, Test, sizeof(Test), HAL_MAX_DELAY) == HAL_OK)
-	    {
-	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
-	    }
-//	    else if (HAL_UART_Transmit_IT(&huart5, Test, sizeof(Test)) == HAL_ERROR)
-	    else
-	    {
-	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
-	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
-	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
-	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
-	    }
-	    osDelay(1000);
 
-	    if (UART4_rxBuffer[0] == '\n')
-	    {
-	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
-	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
-	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
-	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
-	    	osDelay(5000);
-//	    	memset(UART4_rxBuffer, '\0', sizeof(UART4_rxBuffer));
-	    }
+	//	    HAL_UART_Transmit(&huart5, Test, sizeof(Test), 10)
+	//	    if (HAL_UART_Transmit_IT(&huart5, Test, sizeof(Test)) == HAL_OK)
+//			float wheel_speed = ((wheel_circum_miles)/6)/((float)speed*hrs);
+//			float wheel_speed = (771.74302075876)/((float)speed);
+//			float wheel_speed = (814.2)/((float)speed);
+//			double wheel_speed = 12.11111111111;
+//			sprintf(buffer, "speed:%u\n", speed);
+//			sprintf(buffer, "speed:%02.2f\n", wheel_speed);
+//			sprintf(buffer, "speed:%02.2f,mode:%hu\n", wheel_speed, mode);
+//			sprintf(buffer, "mode:%hu,red:%hu,green:%hu,blue:%hu\n", mode, red, green, blue);
+			sprintf(buffer, "mode:%hu,speed:%u\n", mode, speed);
+//			sprintf(buffer, "speed:%f,battery:%hu,input:%hi\n", speed, batt, throttle);
+//			sprintf(buffer, "speed:%hu,battery:%hu", speed, batt);
+//			if (HAL_UART_Transmit(&huart5, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY) == HAL_OK)
+			if (HAL_UART_Transmit(&huart5, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY) == HAL_OK)
+			{
+				osDelay(100);
+				sprintf(buffer, "throttle:%hu\n", throttle);
+				HAL_UART_Transmit(&huart5, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
+//				osDelay(100);
+//				sprintf(buffer, "speed:%u\n", test_speed);
+//				HAL_UART_Transmit(&huart5, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+			}
+//		    if (HAL_UART_Transmit(&huart5, Test, sizeof(Test), HAL_MAX_DELAY) == HAL_OK)
+//		    {
+//		    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+//		    }
+	//	    else if (HAL_UART_Transmit_IT(&huart5, Test, sizeof(Test)) == HAL_ERROR)
+		    else
+		    {
+		    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+		    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
+		    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
+		    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
+		    }
+		    osDelay(100);
 
-//	    while(HAL_UART_Receive(&huart5, Rece, sizeof(Rece), HAL_MAX_DELAY) == HAL_OK)
-//	    {
-//	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
-//	    	memcpy(&Test, &Rece, sizeof(Test));
-//	    }
-//	    osDelay(1000);
-	    counter++;
-	  }
+		    if (UART4_rxBuffer[0] == '\n')
+		    {
+		    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+		    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
+		    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
+		    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
+		    	osDelay(5000);
+	//	    	memset(UART4_rxBuffer, '\0', sizeof(UART4_rxBuffer));
+		    }
 
-	  // In case we accidentally exit loop
-	  osThreadTerminate(NULL);
-  /* USER CODE END StartTask04 */
+	//	    while(HAL_UART_Receive(&huart5, Rece, sizeof(Rece), HAL_MAX_DELAY) == HAL_OK)
+	//	    {
+	//	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+	//	    	memcpy(&Test, &Rece, sizeof(Test));
+	//	    }
+//			osDelay(10);
+		    batt++;
+		    if(batt > 100)
+		    	batt = 0;
+		    test_speed -= 10;
+		    if(test_speed < 10)
+		    	test_speed = 814;
+		  }
+
+		  // In case we accidentally exit loop
+		  osThreadTerminate(NULL);
+
+  /* USER CODE END WriteBluetooth */
 }
 
 /**
